@@ -1,47 +1,53 @@
 import scala.io.Source
 import scala.collection.mutable.Map
 
-val map = Map[String, Map[String, Int]]()
 val fileName = "d:\\X.txt"
-val src = Source.fromFile(fileName)
 
+val map = Map[String, Int]()
 var path = new Array[String](500)
-var depth = 0
 
-var pdepth = 0
+var interested :List[String] = List[String]()
 
-for(line <- src.getLines()){
-  depth = line.indexOf("-> ")
-  val pkg_method = line.substring(line.indexOf("-> ")+3, line.lastIndexOf("("))
-  //val tmp = pkg_method.split("[.](?=[^.]+[.][^.]+[(])")
-  //val (pkg:String, method:String) = if (tmp.length == 2) { (tmp(0), tmp(1)) } else { ("", pkg_method) }
-  val (pkg:String, method:String) = pkg_method.splitAt(pkg_method.lastIndexOf("."))
-  
-  path(depth) = line
-  
-  val cnt = map.getOrElseUpdate(pkg, Map()).getOrElseUpdate(method, 0) + 1
-  map(pkg)(method) = cnt
-  
-  
-  
-  /* // Print interested classes
-  if (depth < pdepth) { pdepth = depth }
-  
-  if (pkg == "de.hybris.bootstrap.config.ExtensionInfo"){
-      for (i <- pdepth to depth-1) { println( path(i) ) }
-      println(line)
-      
-      pdepth = depth
-  }*/
-}
+for( iter <- List(1,2) ){ // 1 - Collect information; 2 - Print interested;
 
+  var depth = 0
+  var pdepth = 0
 
-for ( (pkg, value) <- map.toList.sortBy( _._1 ) ) { 
-  printf("%s:\n", pkg)
-  for ( (method, num) <- value.toList.sortBy( _._2 ).reverse){
-    printf("    -> %010d - %s\n", num, method)
+  val src = Source.fromFile(fileName)
+  for(line <- src.getLines()){
+    val pkg_method = line.substring(line.indexOf("-> ")+3, line.lastIndexOf("("))
+    
+    if (iter == 1){
+      // collecting calls count
+      map(pkg_method) = map.getOrElseUpdate(pkg_method, 0) + 1
+    }
+    else if (iter == 2){
+      //tracing stack
+      depth = line.indexOf("-> ")
+      path(depth) = line
+      if (depth < pdepth) { pdepth = depth }
+    
+      // output
+      if ( interested.contains(pkg_method) ) {
+        //for (i <- pdepth to depth-2) { println( path(i) ) }
+        println(line) //.replace("->", "->>"))
+        
+        pdepth = depth
+      }
+    }
   }
-  println
+  src.close()
+  
+  //filtering interested calls
+  if (iter == 1) { 
+    val tmp =  map.toList.filter( _._2 < 5)
+    
+    val tmp2 = tmp.map( x => x._1.toString.split("[.](?=[^.]+$)").toList :+ x._2.toString )
+    for ( (k,v) <- tmp2.groupBy( _(0) ).toList.sortBy( _._1 ) ) { 
+      printf("%s\n  %s\n", k, v.sortBy( _(1) ).map( x => x(2)  + "x - " + x(1)).mkString("\n  ") )
+    }
+    println
+    
+    interested = tmp.map( _._1 )
+  }
 }
-
-src.close()
